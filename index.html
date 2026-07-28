@@ -724,8 +724,8 @@ h1 {
   }
 
   .map-frame {
-    height: clamp(420px, 62vh, 620px);
-    height: clamp(420px, 62dvh, 620px);
+    height: clamp(520px, 74vh, 760px);
+    height: clamp(520px, 74dvh, 760px);
     margin-inline: 8px;
     border-radius: 14px;
   }
@@ -937,7 +937,7 @@ window.ORIENTATION_MAP_DATA = {
   },
   "map": {
     "image": "./assets/map.png",
-    "alt": "Orientation map from Screenshot 2026-07-27 141916.png",
+    "alt": "Orientation map from TestMap.png",
     "allowZoom": true,
     "maxZoom": 4
   },
@@ -945,8 +945,8 @@ window.ORIENTATION_MAP_DATA = {
     {
       "id": "welcome-center",
       "title": "Student Rec Test",
-      "x": 0.2965444287729196,
-      "y": 0.40835898349062605,
+      "x": 0.3342736248236953,
+      "y": 0.48534467559943584,
       "marker": {
         "style": "pin",
         "size": 40,
@@ -976,8 +976,8 @@ window.ORIENTATION_MAP_DATA = {
     {
       "id": "library",
       "title": "The Mail Center",
-      "x": 0.5278561354019746,
-      "y": 0.30090814275902417,
+      "x": 0.5035260930888575,
+      "y": 0.45572549365303244,
       "marker": {
         "style": "pin",
         "size": 46,
@@ -1003,8 +1003,8 @@ window.ORIENTATION_MAP_DATA = {
     {
       "id": "student-commons",
       "title": "The Naro",
-      "x": 0.6153032440056417,
-      "y": 0.7030347739818371,
+      "x": 0.5684062059238364,
+      "y": 0.5690306182416549,
       "marker": {
         "style": "pin",
         "size": 36,
@@ -1104,6 +1104,8 @@ window.ORIENTATION_MAP_DATA = {
     const ignoredSelector =
       options.ignoredSelector || "button, input, a, .map-controls";
     const pointers = new Map();
+    const supportsTouchEvents =
+      typeof window !== "undefined" && "TouchEvent" in window;
     const state = {
       zoom: 1,
       panX: 0,
@@ -1112,6 +1114,7 @@ window.ORIENTATION_MAP_DATA = {
       enabled: options.enabled !== false
     };
     let gesture = null;
+    let touchGesture = null;
 
     function rectangle() {
       return viewport.getBoundingClientRect();
@@ -1225,6 +1228,10 @@ window.ORIENTATION_MAP_DATA = {
       };
     }
 
+    function ignoredTarget(target) {
+      return Boolean(target?.closest?.(ignoredSelector));
+    }
+
     function beginPinch() {
       const active = Array.from(pointers.values()).slice(0, 2);
       const dx = active[1].x - active[0].x;
@@ -1245,15 +1252,20 @@ window.ORIENTATION_MAP_DATA = {
     function pointerDown(event) {
       if (
         !state.enabled ||
+        (event.pointerType === "touch" && supportsTouchEvents) ||
         event.button !== 0 ||
-        event.target.closest(ignoredSelector)
+        ignoredTarget(event.target)
       ) {
         return;
       }
 
       const position = pointerPosition(event);
       pointers.set(event.pointerId, position);
-      viewport.setPointerCapture(event.pointerId);
+      try {
+        viewport.setPointerCapture?.(event.pointerId);
+      } catch (_error) {
+        // Pointer tracking continues on the viewport when capture is unavailable.
+      }
 
       if (pointers.size === 1) {
         gesture = {
@@ -1320,8 +1332,8 @@ window.ORIENTATION_MAP_DATA = {
       pointers.delete(event.pointerId);
       viewport.classList.remove("is-panning");
 
-      if (viewport.hasPointerCapture(event.pointerId)) {
-        viewport.releasePointerCapture(event.pointerId);
+      if (viewport.hasPointerCapture?.(event.pointerId)) {
+        viewport.releasePointerCapture?.(event.pointerId);
       }
 
       if (pointers.size === 1) {
@@ -1358,6 +1370,168 @@ window.ORIENTATION_MAP_DATA = {
       }
     }
 
+    function touchPosition(touch) {
+      const bounds = rectangle();
+      return {
+        x: touch.clientX - bounds.left,
+        y: touch.clientY - bounds.top,
+        clientX: touch.clientX,
+        clientY: touch.clientY
+      };
+    }
+
+    function beginTouchPan(touch, moved) {
+      const position = touchPosition(touch);
+      touchGesture = {
+        type: "pan",
+        startX: position.x,
+        startY: position.y,
+        startPanX: state.panX,
+        startPanY: state.panY,
+        clientX: position.clientX,
+        clientY: position.clientY,
+        axis: state.zoom > 1.001 ? "pan" : null,
+        moved: Boolean(moved)
+      };
+    }
+
+    function beginTouchPinch(touches) {
+      const first = touchPosition(touches[0]);
+      const second = touchPosition(touches[1]);
+      const dx = second.x - first.x;
+      const dy = second.y - first.y;
+      const midpointX = (first.x + second.x) / 2;
+      const midpointY = (first.y + second.y) / 2;
+
+      touchGesture = {
+        type: "pinch",
+        startDistance: Math.max(1, Math.hypot(dx, dy)),
+        startZoom: state.zoom,
+        contentX: (midpointX - state.panX) / state.zoom,
+        contentY: (midpointY - state.panY) / state.zoom,
+        moved: true
+      };
+    }
+
+    function touchStart(event) {
+      if (!state.enabled || ignoredTarget(event.target)) {
+        return;
+      }
+
+      if (event.touches.length >= 2) {
+        beginTouchPinch(event.touches);
+        event.preventDefault();
+      } else if (event.touches.length === 1) {
+        beginTouchPan(event.touches[0], false);
+        if (state.zoom > 1.001) {
+          event.preventDefault();
+        }
+      }
+    }
+
+    function touchMove(event) {
+      if (!state.enabled || !touchGesture) {
+        return;
+      }
+
+      if (event.touches.length >= 2) {
+        if (touchGesture.type !== "pinch") {
+          beginTouchPinch(event.touches);
+        }
+
+        const first = touchPosition(event.touches[0]);
+        const second = touchPosition(event.touches[1]);
+        const dx = second.x - first.x;
+        const dy = second.y - first.y;
+        const midpointX = (first.x + second.x) / 2;
+        const midpointY = (first.y + second.y) / 2;
+        const distance = Math.max(1, Math.hypot(dx, dy));
+
+        event.preventDefault();
+        state.zoom = normalizeZoom(
+          touchGesture.startZoom *
+            (distance / touchGesture.startDistance),
+          state.maxZoom
+        );
+        state.panX = midpointX - touchGesture.contentX * state.zoom;
+        state.panY = midpointY - touchGesture.contentY * state.zoom;
+        viewport.classList.add("is-panning");
+        applyState();
+        return;
+      }
+
+      if (event.touches.length !== 1 || touchGesture.type !== "pan") {
+        return;
+      }
+
+      const position = touchPosition(event.touches[0]);
+      const deltaX = position.x - touchGesture.startX;
+      const deltaY = position.y - touchGesture.startY;
+      const distance = Math.hypot(deltaX, deltaY);
+      touchGesture.clientX = position.clientX;
+      touchGesture.clientY = position.clientY;
+      touchGesture.moved = touchGesture.moved || distance > 6;
+
+      if (!touchGesture.axis && distance > 6) {
+        touchGesture.axis =
+          state.zoom > 1.001 || Math.abs(deltaX) >= Math.abs(deltaY)
+            ? "pan"
+            : "scroll";
+      }
+
+      if (touchGesture.axis !== "pan" || !canPan()) {
+        return;
+      }
+
+      event.preventDefault();
+      state.panX = touchGesture.startPanX + deltaX;
+      state.panY = touchGesture.startPanY + deltaY;
+      viewport.classList.add("is-panning");
+      applyState();
+    }
+
+    function finishTouch(event, cancelled) {
+      if (!touchGesture) {
+        return;
+      }
+
+      const finishedGesture = touchGesture;
+      viewport.classList.remove("is-panning");
+
+      if (event.touches.length >= 2) {
+        beginTouchPinch(event.touches);
+        return;
+      }
+      if (event.touches.length === 1) {
+        beginTouchPan(event.touches[0], true);
+        return;
+      }
+
+      touchGesture = null;
+      const finishedTouch = event.changedTouches?.[0];
+      if (
+        !cancelled &&
+        finishedTouch &&
+        finishedGesture.type === "pan" &&
+        !finishedGesture.moved &&
+        typeof options.onTap === "function"
+      ) {
+        const view = measurements();
+        options.onTap({
+          clientX: finishedTouch.clientX,
+          clientY: finishedTouch.clientY,
+          point: toContentPoint(
+            finishedTouch.clientX,
+            finishedTouch.clientY,
+            view.bounds,
+            state,
+            view.contentWidth,
+            view.contentHeight
+          )
+        });
+      }
+    }
+
     function wheel(event) {
       if (!state.enabled || !event.ctrlKey) {
         return;
@@ -1389,6 +1563,14 @@ window.ORIENTATION_MAP_DATA = {
     });
     viewport.addEventListener("pointercancel", function (event) {
       finishPointer(event, true);
+    });
+    viewport.addEventListener("touchstart", touchStart, { passive: false });
+    viewport.addEventListener("touchmove", touchMove, { passive: false });
+    viewport.addEventListener("touchend", function (event) {
+      finishTouch(event, false);
+    });
+    viewport.addEventListener("touchcancel", function (event) {
+      finishTouch(event, true);
     });
     viewport.addEventListener("wheel", wheel, { passive: false });
     zoomInput?.addEventListener("input", inputZoom);
