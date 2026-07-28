@@ -220,8 +220,11 @@ h1 {
   touch-action: pan-y;
 }
 
-.map-frame.is-zoomed {
+.map-frame.is-pannable {
   cursor: grab;
+}
+
+.map-frame.is-zoomed {
   touch-action: none;
 }
 
@@ -721,13 +724,29 @@ h1 {
   }
 
   .map-frame {
+    height: clamp(420px, 62vh, 620px);
+    height: clamp(420px, 62dvh, 620px);
     margin-inline: 8px;
     border-radius: 14px;
   }
 
+  .map-canvas {
+    width: max-content;
+    min-width: 100%;
+    height: 100%;
+  }
+
+  .map-image {
+    width: auto;
+    max-width: none;
+    height: 100%;
+  }
+
   .map-placeholder {
-    min-height: 300px;
-    aspect-ratio: 4 / 5;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    aspect-ratio: auto;
   }
 
   .map-controls {
@@ -1030,31 +1049,44 @@ window.ORIENTATION_MAP_DATA = {
     return clamp(Number.isFinite(number) ? number : 1, 1, max);
   }
 
-  function clampPan(state, width, height) {
-    const minX = Math.min(0, width * (1 - state.zoom));
-    const minY = Math.min(0, height * (1 - state.zoom));
+  function clampPan(state, width, height, contentWidth, contentHeight) {
+    const mapWidth =
+      Number(contentWidth) > 0 ? Number(contentWidth) : Number(width) || 0;
+    const mapHeight =
+      Number(contentHeight) > 0 ? Number(contentHeight) : Number(height) || 0;
+    const minX = Math.min(0, width - mapWidth * state.zoom);
+    const minY = Math.min(0, height - mapHeight * state.zoom);
     state.panX = clamp(Number(state.panX) || 0, minX, 0);
     state.panY = clamp(Number(state.panY) || 0, minY, 0);
     return state;
   }
 
-  function toContentPoint(clientX, clientY, rectangle, state) {
+  function toContentPoint(
+    clientX,
+    clientY,
+    rectangle,
+    state,
+    contentWidth,
+    contentHeight
+  ) {
     if (!rectangle || rectangle.width <= 0 || rectangle.height <= 0) {
       return { x: 0.5, y: 0.5 };
     }
 
+    const mapWidth = Number(contentWidth) > 0 ? contentWidth : rectangle.width;
+    const mapHeight = Number(contentHeight) > 0 ? contentHeight : rectangle.height;
     return {
       x: clamp(
         (clientX - rectangle.left - state.panX) /
           state.zoom /
-          rectangle.width,
+          mapWidth,
         0,
         1
       ),
       y: clamp(
         (clientY - rectangle.top - state.panY) /
           state.zoom /
-          rectangle.height,
+          mapHeight,
         0,
         1
       )
@@ -1085,11 +1117,50 @@ window.ORIENTATION_MAP_DATA = {
       return viewport.getBoundingClientRect();
     }
 
-    function applyState() {
+    function measurements() {
       const bounds = rectangle();
-      clampPan(state, bounds.width, bounds.height);
+      return {
+        bounds,
+        contentWidth: Math.max(bounds.width, content.offsetWidth || 0),
+        contentHeight: Math.max(bounds.height, content.offsetHeight || 0)
+      };
+    }
+
+    function centeredPan(view, zoom) {
+      return {
+        x: Math.min(
+          0,
+          (view.bounds.width - view.contentWidth * zoom) / 2
+        ),
+        y: Math.min(
+          0,
+          (view.bounds.height - view.contentHeight * zoom) / 2
+        )
+      };
+    }
+
+    function canPan(view) {
+      const current = view || measurements();
+      return (
+        state.enabled &&
+        (current.contentWidth * state.zoom > current.bounds.width + 0.5 ||
+          current.contentHeight * state.zoom > current.bounds.height + 0.5)
+      );
+    }
+
+    function applyState() {
+      const view = measurements();
+      const bounds = view.bounds;
+      clampPan(
+        state,
+        bounds.width,
+        bounds.height,
+        view.contentWidth,
+        view.contentHeight
+      );
       content.style.transform = `translate3d(${state.panX}px, ${state.panY}px, 0) scale(${state.zoom})`;
       viewport.classList.toggle("is-zoomed", state.zoom > 1.001);
+      viewport.classList.toggle("is-pannable", canPan(view));
 
       if (zoomInput) {
         zoomInput.min = "1";
@@ -1105,11 +1176,12 @@ window.ORIENTATION_MAP_DATA = {
         zoomOutButton.disabled = !state.enabled || state.zoom <= 1.001;
       }
       if (resetButton) {
+        const resetPan = centeredPan(view, 1);
         resetButton.disabled =
           !state.enabled ||
           (state.zoom <= 1.001 &&
-            Math.abs(state.panX) < 0.5 &&
-            Math.abs(state.panY) < 0.5);
+            Math.abs(state.panX - resetPan.x) < 0.5 &&
+            Math.abs(state.panY - resetPan.y) < 0.5);
       }
       if (zoomStatus) {
         zoomStatus.textContent = `${state.zoom.toFixed(1)}×`;
@@ -1136,9 +1208,10 @@ window.ORIENTATION_MAP_DATA = {
     }
 
     function reset() {
+      const resetPan = centeredPan(measurements(), 1);
       state.zoom = 1;
-      state.panX = 0;
-      state.panY = 0;
+      state.panX = resetPan.x;
+      state.panY = resetPan.y;
       applyState();
     }
 
@@ -1227,7 +1300,7 @@ window.ORIENTATION_MAP_DATA = {
         const deltaY = position.y - gesture.startY;
         gesture.moved = gesture.moved || Math.hypot(deltaX, deltaY) > 6;
 
-        if (state.zoom > 1.001) {
+        if (canPan()) {
           event.preventDefault();
           state.panX = gesture.startPanX + deltaX;
           state.panY = gesture.startPanY + deltaY;
@@ -1341,8 +1414,9 @@ window.ORIENTATION_MAP_DATA = {
         }
         if (!state.enabled) {
           state.zoom = 1;
-          state.panX = 0;
-          state.panY = 0;
+          const resetPan = centeredPan(measurements(), 1);
+          state.panX = resetPan.x;
+          state.panY = resetPan.y;
         } else {
           state.zoom = normalizeZoom(state.zoom, state.maxZoom);
         }
@@ -1352,7 +1426,15 @@ window.ORIENTATION_MAP_DATA = {
         return { ...state };
       },
       contentPoint: function (clientX, clientY) {
-        return toContentPoint(clientX, clientY, rectangle(), state);
+        const view = measurements();
+        return toContentPoint(
+          clientX,
+          clientY,
+          view.bounds,
+          state,
+          view.contentWidth,
+          view.contentHeight
+        );
       }
     };
   }
@@ -1470,8 +1552,10 @@ window.ORIENTATION_MAP_DATA = {
   }
 
   function positionMarkerAnchors(viewState) {
-    const width = elements.mapFrame.clientWidth;
-    const height = elements.mapFrame.clientHeight;
+    const width =
+      elements.mapCanvas.offsetWidth || elements.mapFrame.clientWidth;
+    const height =
+      elements.mapCanvas.offsetHeight || elements.mapFrame.clientHeight;
 
     elements.markers
       .querySelectorAll(".map-marker-anchor")
@@ -1510,13 +1594,13 @@ window.ORIENTATION_MAP_DATA = {
       elements.mapImage.hidden = false;
       elements.mapPlaceholder.hidden = true;
       elements.mapImage.onload = function () {
-        mapController.refresh();
+        mapController.reset();
       };
 
       elements.mapImage.onerror = function () {
         elements.mapImage.hidden = true;
         elements.mapPlaceholder.hidden = false;
-        mapController.refresh();
+        mapController.reset();
       };
     }
 
