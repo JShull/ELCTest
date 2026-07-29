@@ -101,11 +101,11 @@ a {
 }
 
 .header-copy {
+  flex: 1 1 auto;
   max-width: 760px;
 }
 
 .eyebrow,
-.section-kicker,
 .dialog-count {
   margin: 0 0 10px;
   color: var(--green);
@@ -141,11 +141,16 @@ h1 {
 
 .header-mark {
   position: relative;
-  flex: 0 0 clamp(96px, 16vw, 180px);
+  flex: 0 0 var(--header-icon-width, 16%);
   aspect-ratio: 1;
 }
 
-.header-mark span {
+.header-mark-default {
+  position: absolute;
+  inset: 0;
+}
+
+.header-mark-default span {
   position: absolute;
   display: block;
   border: 2px solid var(--green);
@@ -154,19 +159,44 @@ h1 {
   transform: rotate(-45deg);
 }
 
-.header-mark span:nth-child(1) {
+.header-mark-default span:nth-child(1) {
   inset: 0 30% 30% 0;
 }
 
-.header-mark span:nth-child(2) {
+.header-mark-default span:nth-child(2) {
   inset: 28% 0 0 28%;
   border-color: var(--coral);
 }
 
-.header-mark span:nth-child(3) {
+.header-mark-default span:nth-child(3) {
   inset: 42% 42% 16% 16%;
   border-color: var(--green-dark);
   background: var(--lime);
+}
+
+.header-icon {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.site-header[data-header-alignment="center"] .header-copy {
+  text-align: center;
+}
+
+.site-header[data-header-alignment="center"] .introduction {
+  margin-inline: auto;
+}
+
+.site-header[data-header-alignment="right"] .header-copy {
+  text-align: right;
+}
+
+.site-header[data-header-alignment="right"] .introduction {
+  margin-left: auto;
 }
 
 .page-shell {
@@ -176,22 +206,15 @@ h1 {
 .map-card {
   --marker-color: var(--green);
   --marker-size: 56px;
+  --marker-foreground: #fff;
   overflow: hidden;
   border: 1px solid rgba(23, 63, 53, 0.12);
   border-radius: var(--radius-large);
   background: var(--paper);
   box-shadow: var(--shadow);
+  padding-top: clamp(18px, 3vw, 28px);
 }
 
-.map-card-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 24px;
-  padding: clamp(24px, 5vw, 48px);
-}
-
-.map-card-heading h2,
 .dialog-copy h2 {
   margin: 0;
   font-family: Georgia, "Times New Roman", serif;
@@ -199,13 +222,6 @@ h1 {
   font-weight: 500;
   letter-spacing: -0.04em;
   line-height: 1;
-}
-
-.map-hint {
-  max-width: 330px;
-  margin: 0;
-  color: var(--ink-muted);
-  line-height: 1.55;
 }
 
 .map-frame {
@@ -279,6 +295,8 @@ body.map-expanded-open {
   width: 100%;
   height: auto;
   display: block;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .map-placeholder {
@@ -305,6 +323,20 @@ body.map-expanded-open {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   background: rgba(255, 253, 248, 0.86);
+}
+
+.map-shade {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  opacity: var(--map-overlay-strength, 0.18);
+  background: linear-gradient(
+    180deg,
+    rgba(8, 28, 23, 0.5),
+    rgba(8, 28, 23, 1)
+  );
+  pointer-events: none;
+  transition: opacity 160ms ease;
 }
 
 .placeholder-road,
@@ -387,21 +419,85 @@ body.map-expanded-open {
   height: var(--marker-size);
   padding: 0;
   place-items: center;
-  border: 4px solid var(--paper);
-  border-radius: 50% 50% 50% 12%;
-  color: #fff;
+  border: 4px solid var(--marker-foreground);
+  border-radius: 50%;
+  color: var(--marker-foreground);
   background: var(--marker-color);
   box-shadow: 0 8px 22px rgba(23, 63, 53, 0.28);
   cursor: pointer;
   pointer-events: auto;
-  transform: translate(-50%, -100%) rotate(-45deg);
+  transform: translate(-50%, -100%);
   transition: filter 160ms ease;
 }
 
-.map-marker span {
+.map-marker[data-marker-style="pin"] {
+  border-radius: 50% 50% 50% 12%;
+  transform: translate(-50%, -100%) rotate(-45deg);
+}
+
+.map-marker[data-marker-style="circle"] {
+  border-radius: 50%;
+}
+
+.map-marker[data-marker-style="star"] {
+  border: 0;
+  border-radius: 0;
+  background: var(--marker-foreground);
+  clip-path: polygon(
+    50% 0%,
+    61% 34%,
+    98% 35%,
+    68% 56%,
+    79% 92%,
+    50% 70%,
+    21% 92%,
+    32% 56%,
+    2% 35%,
+    39% 34%
+  );
+}
+
+.map-marker[data-marker-style="star"]::before {
+  position: absolute;
+  z-index: 0;
+  inset: 4px;
+  background: var(--marker-color);
+  clip-path: inherit;
+  content: "";
+}
+
+.map-marker[data-marker-style="custom"] {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.map-marker-number {
+  position: relative;
+  z-index: 2;
   font-size: clamp(0.8rem, calc(var(--marker-size) * 0.28), 1.35rem);
   font-weight: 900;
+}
+
+.map-marker[data-marker-style="pin"] .map-marker-number {
   transform: rotate(45deg);
+}
+
+.map-marker-custom-icon {
+  position: absolute;
+  z-index: 1;
+  inset: 3px;
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+  object-fit: contain;
+  filter:
+    drop-shadow(2px 0 0 var(--marker-foreground))
+    drop-shadow(-2px 0 0 var(--marker-foreground))
+    drop-shadow(0 2px 0 var(--marker-foreground))
+    drop-shadow(0 -2px 0 var(--marker-foreground));
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .map-marker:hover {
@@ -450,6 +546,7 @@ body.map-expanded-open {
   flex: 0 0 36px;
   height: 36px;
   place-items: center;
+  border: 2px solid #fff;
   border-radius: 50%;
   color: #fff;
   font-weight: 800;
@@ -786,21 +883,9 @@ body.map-expanded-open {
     align-items: flex-end;
   }
 
-  .header-mark {
-    flex-basis: 76px;
-  }
-
-  .map-card-heading {
-    display: block;
-  }
-
-  .map-hint {
-    margin-top: 14px;
-  }
-
   .map-frame {
-    height: clamp(520px, 74vh, 760px);
-    height: clamp(520px, 74dvh, 760px);
+    height: clamp(360px, 52vh, 520px);
+    height: clamp(360px, 52svh, 520px);
     margin-inline: 8px;
     border-radius: 14px;
   }
@@ -891,36 +976,35 @@ body.map-expanded-open {
   <body>
     <a class="skip-link" href="#map-card">Skip to the map</a>
 
-    <header class="site-header">
+    <header id="site-header" class="site-header" data-header-alignment="left">
       <div class="header-copy">
-        <p class="eyebrow">Explore at your own pace</p>
+        <p id="site-eyebrow" class="eyebrow">Explore at your own pace</p>
         <h1 id="site-title">Orientation Photo Quest</h1>
         <p id="site-introduction" class="introduction">
           Select a numbered location on the map to see what you will find there.
         </p>
       </div>
-      <div class="header-mark" aria-hidden="true">
-        <span></span>
-        <span></span>
-        <span></span>
+      <div class="header-mark">
+        <div id="header-mark-default" class="header-mark-default" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </div>
+        <img
+          id="header-icon"
+          class="header-icon"
+          alt=""
+          draggable="false"
+          hidden
+        >
       </div>
     </header>
 
     <main class="page-shell">
-      <section id="map-card" class="map-card" aria-labelledby="map-heading">
-        <div class="map-card-heading">
-          <div>
-            <p class="section-kicker">Interactive map</p>
-            <h2 id="map-heading">Choose a location</h2>
-          </div>
-          <p class="map-hint">
-            Tap a marker for photos, details, and helpful links.
-          </p>
-        </div>
-
+      <section id="map-card" class="map-card" aria-label="Interactive location map">
         <div id="map-frame" class="map-frame">
           <div id="map-canvas" class="map-canvas">
-            <img id="map-image" class="map-image" alt="" hidden>
+            <img id="map-image" class="map-image" alt="" draggable="false" hidden>
             <div id="map-placeholder" class="map-placeholder">
               <div class="placeholder-road placeholder-road-one"></div>
               <div class="placeholder-road placeholder-road-two"></div>
@@ -930,6 +1014,7 @@ body.map-expanded-open {
               <p>Sample map area</p>
             </div>
           </div>
+          <div id="map-shade" class="map-shade" aria-hidden="true" hidden></div>
           <div id="map-markers" class="map-markers" aria-label="Map locations"></div>
 
           <button
@@ -1014,8 +1099,8 @@ body.map-expanded-open {
 
     <script>
 window.ORIENTATION_MAP_DATA = {
-  "siteTitle": "Orientation Photo Quest",
-  "introduction": "Select a numbered location on the map to see what you will find there.",
+  "siteTitle": "Orientation Photo Challenge",
+  "introduction": "Go to each of these locations and submit the required assignment!",
   "display": {
     "showLocationKey": true
   },
@@ -1023,7 +1108,16 @@ window.ORIENTATION_MAP_DATA = {
     "image": "./assets/map.png",
     "alt": "Orientation map from TestMap.png",
     "allowZoom": true,
-    "maxZoom": 4
+    "maxZoom": 6,
+    "initialView": {
+      "zoom": 2.5,
+      "centerX": 0.4609022521455089,
+      "centerY": 0.5009398438337602
+    },
+    "contrastOverlay": {
+      "enabled": true,
+      "strength": 55
+    }
   },
   "locations": [
     {
@@ -1032,9 +1126,11 @@ window.ORIENTATION_MAP_DATA = {
       "x": 0.3342736248236953,
       "y": 0.48534467559943584,
       "marker": {
-        "style": "pin",
+        "style": "circle",
         "size": 40,
-        "color": "#c2b200"
+        "color": "#ffea00",
+        "foreground": "black",
+        "icon": ""
       },
       "gallery": {
         "aspectRatio": "1:1"
@@ -1042,12 +1138,16 @@ window.ORIENTATION_MAP_DATA = {
       "description": "Student rec test!",
       "images": [
         {
-          "src": "./assets/locations/welcome-center-1.png",
-          "alt": "John the odd"
+          "src": "./assets/locations/welcome-center-1.jpg",
+          "alt": ""
         },
         {
-          "src": "./assets/locations/welcome-center-2.png",
-          "alt": "The Dragas Building"
+          "src": "./assets/locations/welcome-center-2.jpg",
+          "alt": ""
+        },
+        {
+          "src": "./assets/locations/welcome-center-3.png",
+          "alt": ""
         }
       ],
       "links": [
@@ -1063,9 +1163,11 @@ window.ORIENTATION_MAP_DATA = {
       "x": 0.5035260930888575,
       "y": 0.45572549365303244,
       "marker": {
-        "style": "pin",
-        "size": 46,
-        "color": "#51a5e6"
+        "style": "star",
+        "size": 70,
+        "color": "#ff7b00",
+        "foreground": "black",
+        "icon": ""
       },
       "gallery": {
         "aspectRatio": "1:1"
@@ -1073,8 +1175,12 @@ window.ORIENTATION_MAP_DATA = {
       "description": "Inside Webb you can get your mail!",
       "images": [
         {
-          "src": "./assets/locations/library-1.png",
-          "alt": "Dragas Building"
+          "src": "./assets/locations/library-1.jpg",
+          "alt": "Mail Center is busy"
+        },
+        {
+          "src": "./assets/locations/library-2.jpg",
+          "alt": "Mail Center Spring 2026 Hours"
         }
       ],
       "links": [
@@ -1087,12 +1193,14 @@ window.ORIENTATION_MAP_DATA = {
     {
       "id": "student-commons",
       "title": "The Naro",
-      "x": 0.5684062059238364,
-      "y": 0.5690306182416549,
+      "x": 0.5714285486878962,
+      "y": 0.5757636091324879,
       "marker": {
         "style": "pin",
-        "size": 36,
-        "color": "#ff00ea"
+        "size": 50,
+        "color": "#ff00ea",
+        "foreground": "white",
+        "icon": ""
       },
       "gallery": {
         "aspectRatio": "1:1"
@@ -1100,13 +1208,25 @@ window.ORIENTATION_MAP_DATA = {
       "description": "Get your rentals and VHS tapes here... look it up!",
       "images": [
         {
-          "src": "./assets/locations/student-commons-1.png",
-          "alt": "John being stupid"
+          "src": "./assets/locations/student-commons-1.jpg",
+          "alt": "Naro at the ODU Perry Library"
         }
       ],
-      "links": []
+      "links": [
+        {
+          "label": "Naro Details",
+          "url": "https://guides.lib.odu.edu/narovideo"
+        }
+      ]
     }
-  ]
+  ],
+  "header": {
+    "eyebrow": "",
+    "alignment": "left",
+    "icon": "./assets/header-icon.png",
+    "iconAlt": "",
+    "iconWidth": 30
+  }
 };
     </script>
     <script>
@@ -1131,6 +1251,18 @@ window.ORIENTATION_MAP_DATA = {
     const number = Number(value);
     const max = Math.max(1, Number(maximum) || 1);
     return clamp(Number.isFinite(number) ? number : 1, 1, max);
+  }
+
+  function normalizeView(value, maximum) {
+    const source = value && typeof value === "object" ? value : {};
+    const centerX = Number(source.centerX);
+    const centerY = Number(source.centerY);
+
+    return {
+      zoom: normalizeZoom(source.zoom, maximum),
+      centerX: clamp(Number.isFinite(centerX) ? centerX : 0.5, 0, 1),
+      centerY: clamp(Number.isFinite(centerY) ? centerY : 0.5, 0, 1)
+    };
   }
 
   function clampPan(state, width, height, contentWidth, contentHeight) {
@@ -1177,6 +1309,32 @@ window.ORIENTATION_MAP_DATA = {
     };
   }
 
+  function viewStateFromCenter(
+    value,
+    width,
+    height,
+    contentWidth,
+    contentHeight,
+    maximum
+  ) {
+    const view = normalizeView(value, maximum);
+    const mapWidth =
+      Number(contentWidth) > 0 ? Number(contentWidth) : Number(width) || 0;
+    const mapHeight =
+      Number(contentHeight) > 0 ? Number(contentHeight) : Number(height) || 0;
+    return clampPan(
+      {
+        zoom: view.zoom,
+        panX: Number(width) / 2 - view.centerX * mapWidth * view.zoom,
+        panY: Number(height) / 2 - view.centerY * mapHeight * view.zoom
+      },
+      Number(width) || 0,
+      Number(height) || 0,
+      mapWidth,
+      mapHeight
+    );
+  }
+
   function createController(options) {
     const viewport = options.viewport;
     const content = options.content;
@@ -1197,6 +1355,7 @@ window.ORIENTATION_MAP_DATA = {
       maxZoom: Math.max(1, Number(options.maxZoom) || 4),
       enabled: options.enabled !== false
     };
+    let homeView = normalizeView(options.homeView, state.maxZoom);
     let gesture = null;
     let touchGesture = null;
 
@@ -1213,17 +1372,16 @@ window.ORIENTATION_MAP_DATA = {
       };
     }
 
-    function centeredPan(view, zoom) {
-      return {
-        x: Math.min(
-          0,
-          (view.bounds.width - view.contentWidth * zoom) / 2
-        ),
-        y: Math.min(
-          0,
-          (view.bounds.height - view.contentHeight * zoom) / 2
-        )
-      };
+    function stateForView(value, view) {
+      const current = view || measurements();
+      return viewStateFromCenter(
+        value,
+        current.bounds.width,
+        current.bounds.height,
+        current.contentWidth,
+        current.contentHeight,
+        state.maxZoom
+      );
     }
 
     function canPan(view) {
@@ -1263,12 +1421,12 @@ window.ORIENTATION_MAP_DATA = {
         zoomOutButton.disabled = !state.enabled || state.zoom <= 1.001;
       }
       if (resetButton) {
-        const resetPan = centeredPan(view, 1);
+        const resetState = stateForView(homeView, view);
         resetButton.disabled =
           !state.enabled ||
-          (state.zoom <= 1.001 &&
-            Math.abs(state.panX - resetPan.x) < 0.5 &&
-            Math.abs(state.panY - resetPan.y) < 0.5);
+          (Math.abs(state.zoom - resetState.zoom) < 0.001 &&
+            Math.abs(state.panX - resetState.panX) < 0.5 &&
+            Math.abs(state.panY - resetState.panY) < 0.5);
       }
       if (zoomStatus) {
         zoomStatus.textContent = `${state.zoom.toFixed(1)}×`;
@@ -1295,10 +1453,18 @@ window.ORIENTATION_MAP_DATA = {
     }
 
     function reset() {
-      const resetPan = centeredPan(measurements(), 1);
-      state.zoom = 1;
-      state.panX = resetPan.x;
-      state.panY = resetPan.y;
+      const resetState = stateForView(homeView);
+      state.zoom = resetState.zoom;
+      state.panX = resetState.panX;
+      state.panY = resetState.panY;
+      applyState();
+    }
+
+    function setView(nextView) {
+      const nextState = stateForView(nextView);
+      state.zoom = nextState.zoom;
+      state.panX = nextState.panX;
+      state.panY = nextState.panY;
       applyState();
     }
 
@@ -1345,6 +1511,9 @@ window.ORIENTATION_MAP_DATA = {
 
       const position = pointerPosition(event);
       pointers.set(event.pointerId, position);
+      if (canPan()) {
+        event.preventDefault();
+      }
       try {
         viewport.setPointerCapture?.(event.pointerId);
       } catch (_error) {
@@ -1671,18 +1840,24 @@ window.ORIENTATION_MAP_DATA = {
       reset,
       refresh: applyState,
       setZoom,
+      setView,
+      setHomeView: function (nextView) {
+        homeView = normalizeView(nextView, state.maxZoom);
+        applyState();
+      },
       setOptions: function (nextOptions) {
         if (Object.hasOwn(nextOptions, "maxZoom")) {
           state.maxZoom = Math.max(1, Number(nextOptions.maxZoom) || 1);
+          homeView = normalizeView(homeView, state.maxZoom);
         }
         if (Object.hasOwn(nextOptions, "enabled")) {
           state.enabled = nextOptions.enabled !== false;
         }
         if (!state.enabled) {
-          state.zoom = 1;
-          const resetPan = centeredPan(measurements(), 1);
-          state.panX = resetPan.x;
-          state.panY = resetPan.y;
+          const resetState = stateForView(homeView);
+          state.zoom = resetState.zoom;
+          state.panX = resetState.panX;
+          state.panY = resetState.panY;
         } else {
           state.zoom = normalizeZoom(state.zoom, state.maxZoom);
         }
@@ -1690,6 +1865,9 @@ window.ORIENTATION_MAP_DATA = {
       },
       getState: function () {
         return { ...state };
+      },
+      getHomeView: function () {
+        return { ...homeView };
       },
       contentPoint: function (clientX, clientY) {
         const view = measurements();
@@ -1708,8 +1886,10 @@ window.ORIENTATION_MAP_DATA = {
   return {
     clamp,
     normalizeZoom,
+    normalizeView,
     clampPan,
     toContentPoint,
+    viewStateFromCenter,
     createController
   };
 });
@@ -1728,10 +1908,16 @@ window.ORIENTATION_MAP_DATA = {
   const elements = {
     siteTitle: document.querySelector("#site-title"),
     introduction: document.querySelector("#site-introduction"),
+    siteEyebrow: document.querySelector("#site-eyebrow"),
+    siteHeader: document.querySelector("#site-header"),
+    headerMark: document.querySelector(".header-mark"),
+    headerIcon: document.querySelector("#header-icon"),
+    headerMarkDefault: document.querySelector("#header-mark-default"),
     mapFrame: document.querySelector("#map-frame"),
     mapCanvas: document.querySelector("#map-canvas"),
     mapImage: document.querySelector("#map-image"),
     mapPlaceholder: document.querySelector("#map-placeholder"),
+    mapShade: document.querySelector("#map-shade"),
     markers: document.querySelector("#map-markers"),
     locationKey: document.querySelector("#location-key"),
     mapControls: document.querySelector("#map-controls"),
@@ -1810,6 +1996,46 @@ window.ORIENTATION_MAP_DATA = {
     return Math.min(88, Math.max(36, Number.isFinite(number) ? number : 56));
   }
 
+  function markerStyle(value) {
+    return ["pin", "star", "circle", "custom"].includes(value)
+      ? value
+      : "pin";
+  }
+
+  function markerForeground(value) {
+    return value === "black" ? "black" : "white";
+  }
+
+  function headerIconWidth(header) {
+    const width = Number(header?.iconWidth);
+    if (Number.isFinite(width)) {
+      return Math.min(50, Math.max(5, Math.round(width)));
+    }
+
+    const previousScale = Number(header?.iconScale);
+    return Math.min(
+      50,
+      Math.max(
+        5,
+        Number.isFinite(previousScale)
+          ? Math.round(previousScale * 0.16)
+          : 16
+      )
+    );
+  }
+
+  function mapOverlayStrength(value) {
+    const number = Number(value);
+    return Math.min(
+      75,
+      Math.max(5, Number.isFinite(number) ? Math.round(number) : 18)
+    );
+  }
+
+  function markerForegroundColor(value) {
+    return markerForeground(value) === "black" ? "#000000" : "#ffffff";
+  }
+
   function galleryAspectRatio(value) {
     const ratios = {
       "1:1": "1 / 1",
@@ -1818,6 +2044,10 @@ window.ORIENTATION_MAP_DATA = {
       "9:16": "9 / 16"
     };
     return ratios[value] || ratios["16:9"];
+  }
+
+  function headerAlignment(value) {
+    return ["left", "center", "right"].includes(value) ? value : "left";
   }
 
   function positionMarkerAnchors(viewState) {
@@ -1841,16 +2071,57 @@ window.ORIENTATION_MAP_DATA = {
     setText(elements.siteTitle, data.siteTitle || "Orientation Photo Quest");
     setText(elements.introduction, data.introduction);
 
+    const header = data.header || {};
+    const eyebrow =
+      typeof header.eyebrow === "string"
+        ? header.eyebrow
+        : "Explore at your own pace";
+    setText(elements.siteEyebrow, eyebrow);
+    elements.siteEyebrow.hidden = !eyebrow.trim();
+    elements.headerMark.style.setProperty(
+      "--header-icon-width",
+      `${headerIconWidth(header)}%`
+    );
+    elements.siteHeader.dataset.headerAlignment = headerAlignment(
+      header.alignment
+    );
+    elements.headerIcon.removeAttribute("src");
+    elements.headerIcon.hidden = true;
+    elements.headerMarkDefault.hidden = false;
+
+    if (header.icon) {
+      elements.headerIcon.src = header.icon;
+      elements.headerIcon.alt =
+        typeof header.iconAlt === "string" ? header.iconAlt : "";
+      elements.headerIcon.hidden = false;
+      elements.headerMarkDefault.hidden = true;
+      elements.headerIcon.onerror = function () {
+        elements.headerIcon.hidden = true;
+        elements.headerMarkDefault.hidden = false;
+      };
+    }
+
     const map = data.map || {};
     const allowZoom = map.allowZoom !== false;
     const maxZoom = Math.min(8, Math.max(2, Number(map.maxZoom) || 4));
+    const contrastOverlay = map.contrastOverlay || {};
+    const overlayEnabled = contrastOverlay.enabled === true;
+    const overlayStrength = mapOverlayStrength(contrastOverlay.strength);
 
     elements.mapControls.hidden = !allowZoom;
     elements.mapNavigationHint.hidden = !allowZoom;
+    elements.mapShade.hidden = !overlayEnabled;
+    elements.mapShade.style.setProperty(
+      "--map-overlay-strength",
+      String(overlayStrength / 100)
+    );
     mapController.setOptions({
       enabled: allowZoom,
       maxZoom
     });
+    mapController.setHomeView(
+      window.OrientationMapViewport.normalizeView(map.initialView, maxZoom)
+    );
     mapController.reset();
 
     elements.mapImage.removeAttribute("src");
@@ -1900,6 +2171,12 @@ window.ORIENTATION_MAP_DATA = {
       const markerAppearance = location.marker || {};
       const color = validMarkerColor(markerAppearance.color);
       const size = markerSize(markerAppearance.size);
+      const customIcon =
+        typeof markerAppearance.icon === "string" ? markerAppearance.icon : "";
+      const selectedStyle = markerStyle(markerAppearance.style);
+      const renderedStyle =
+        selectedStyle === "custom" && !customIcon ? "pin" : selectedStyle;
+      const foreground = markerForegroundColor(markerAppearance.foreground);
       const markerAnchor = document.createElement("div");
       const marker = document.createElement("button");
       const markerNumber = document.createElement("span");
@@ -1909,10 +2186,23 @@ window.ORIENTATION_MAP_DATA = {
       markerAnchor.dataset.mapY = String(clampCoordinate(location.y));
       markerAnchor.style.setProperty("--marker-color", color);
       markerAnchor.style.setProperty("--marker-size", `${size}px`);
+      markerAnchor.style.setProperty("--marker-foreground", foreground);
       marker.type = "button";
       marker.className = "map-marker";
+      marker.dataset.markerStyle = renderedStyle;
       marker.setAttribute("aria-label", `Open ${location.title} details`);
+      markerNumber.className = "map-marker-number";
       markerNumber.textContent = String(index + 1);
+
+      if (renderedStyle === "custom") {
+        const markerImage = document.createElement("img");
+        markerImage.className = "map-marker-custom-icon";
+        markerImage.src = customIcon;
+        markerImage.alt = "";
+        markerImage.draggable = false;
+        marker.append(markerImage);
+      }
+
       marker.append(markerNumber);
       marker.addEventListener("click", function () {
         openLocation(location, index, marker);
@@ -1930,6 +2220,8 @@ window.ORIENTATION_MAP_DATA = {
       keyButton.setAttribute("aria-label", `Open ${location.title} details`);
       keyNumber.className = "key-number";
       keyNumber.style.backgroundColor = color;
+      keyNumber.style.color = foreground;
+      keyNumber.style.borderColor = foreground;
       keyTitle.className = "key-title";
       keyNumber.textContent = String(index + 1);
       keyTitle.textContent = location.title;
