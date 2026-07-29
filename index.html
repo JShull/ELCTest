@@ -232,6 +232,43 @@ h1 {
   cursor: grabbing;
 }
 
+body.map-expanded-open {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+.map-frame.is-expanded {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  touch-action: none;
+}
+
+.map-frame.is-expanded .map-canvas {
+  width: max-content;
+  min-width: 100%;
+  height: 100%;
+}
+
+.map-frame.is-expanded .map-image {
+  width: auto;
+  max-width: none;
+  height: 100%;
+}
+
+.map-frame.is-expanded .map-placeholder {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: auto;
+}
+
 .map-canvas {
   position: relative;
   transform-origin: 0 0;
@@ -417,6 +454,44 @@ h1 {
   color: #fff;
   font-weight: 800;
   background: var(--marker-color);
+}
+
+.map-expand-button {
+  position: absolute;
+  z-index: 6;
+  top: 12px;
+  right: 12px;
+  min-height: 44px;
+  padding: 9px 15px;
+  border: 1px solid rgba(23, 63, 53, 0.25);
+  border-radius: 999px;
+  color: var(--green);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  background: rgba(255, 253, 248, 0.96);
+  box-shadow: 0 8px 24px rgba(23, 63, 53, 0.2);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+}
+
+.map-expand-button:hover {
+  background: #fff;
+}
+
+.map-expand-button:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.map-frame.is-expanded .map-expand-button {
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+}
+
+.map-frame.is-expanded .map-controls {
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
 }
 
 .map-controls {
@@ -856,6 +931,15 @@ h1 {
             </div>
           </div>
           <div id="map-markers" class="map-markers" aria-label="Map locations"></div>
+
+          <button
+            id="map-expand"
+            class="map-expand-button"
+            type="button"
+            aria-expanded="false"
+          >
+            <span id="map-expand-label">Expand map</span>
+          </button>
 
           <div id="map-controls" class="map-controls" aria-label="Map zoom controls">
             <button id="map-zoom-out" type="button" aria-label="Zoom out">−</button>
@@ -1657,6 +1741,8 @@ window.ORIENTATION_MAP_DATA = {
     mapZoomReset: document.querySelector("#map-zoom-reset"),
     mapZoomStatus: document.querySelector("#map-zoom-status"),
     mapNavigationHint: document.querySelector("#map-navigation-hint"),
+    mapExpand: document.querySelector("#map-expand"),
+    mapExpandLabel: document.querySelector("#map-expand-label"),
     dialog: document.querySelector("#location-dialog"),
     close: document.querySelector("#dialog-close"),
     dialogCount: document.querySelector("#dialog-count"),
@@ -1675,6 +1761,7 @@ window.ORIENTATION_MAP_DATA = {
   let activeImageIndex = 0;
   let dialogInvoker = null;
   let touchStartX = null;
+  let mapExpanded = false;
 
   const mapController = window.OrientationMapViewport.createController({
     viewport: elements.mapFrame,
@@ -1787,6 +1874,22 @@ window.ORIENTATION_MAP_DATA = {
     }
 
     elements.locationKey.hidden = data.display?.showLocationKey === false;
+  }
+
+  function setMapExpanded(expanded) {
+    mapExpanded = Boolean(expanded);
+    elements.mapFrame.classList.toggle("is-expanded", mapExpanded);
+    document.body.classList.toggle("map-expanded-open", mapExpanded);
+    elements.mapExpand.setAttribute("aria-expanded", String(mapExpanded));
+    setText(elements.mapExpandLabel, mapExpanded ? "Close map" : "Expand map");
+    elements.mapExpand.setAttribute(
+      "aria-label",
+      mapExpanded ? "Close expanded map" : "Expand map to fill the screen"
+    );
+
+    window.requestAnimationFrame(function () {
+      mapController.reset();
+    });
   }
 
   function buildLocations() {
@@ -1951,6 +2054,17 @@ window.ORIENTATION_MAP_DATA = {
   elements.close.addEventListener("click", closeDialog);
   elements.previous.addEventListener("click", showPreviousImage);
   elements.next.addEventListener("click", showNextImage);
+  elements.mapExpand.addEventListener("click", function () {
+    setMapExpanded(!mapExpanded);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape" && mapExpanded && !elements.dialog.open) {
+      event.preventDefault();
+      setMapExpanded(false);
+      elements.mapExpand.focus();
+    }
+  });
 
   elements.dialog.addEventListener("click", function (event) {
     if (event.target === elements.dialog) {
